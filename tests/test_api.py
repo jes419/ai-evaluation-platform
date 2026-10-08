@@ -38,6 +38,33 @@ def test_root():
     }
 
 
+def test_analytics_returns_empty_metrics_initially():
+    response = client.get("/analytics")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data == {
+        "total_evaluations": 0,
+        "scored_evaluations": 0,
+        "passed_evaluations": 0,
+        "failed_evaluations": 0,
+        "pass_rate": 0.0,
+        "average_score": 0.0,
+        "average_accuracy": 0.0,
+        "average_relevance": 0.0,
+        "average_completeness": 0.0,
+        "llm_evaluations": 0,
+        "average_llm_score": 0.0,
+        "average_llm_accuracy": 0.0,
+        "average_llm_relevance": 0.0,
+        "average_llm_completeness": 0.0,
+        "comparison_evaluations": 0,
+        "average_score_difference": 0.0,
+    }
+
+
 def test_evaluate_without_reference_answer():
     response = create_evaluation(
         "What is Python?",
@@ -228,8 +255,14 @@ def test_get_evaluations_respects_offset():
 
 def test_get_evaluations_respects_limit_and_offset():
     create_evaluation("Question 1", "Response 1")
-    second_response = create_evaluation("Question 2", "Response 2")
-    third_response = create_evaluation("Question 3", "Response 3")
+    second_response = create_evaluation(
+        "Question 2",
+        "Response 2",
+    )
+    third_response = create_evaluation(
+        "Question 3",
+        "Response 3",
+    )
     create_evaluation("Question 4", "Response 4")
 
     response = client.get("/evaluations?limit=2&offset=1")

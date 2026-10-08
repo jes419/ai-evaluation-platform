@@ -59,3 +59,22 @@ class EvaluationHistoryResponse(BaseModel):
     total: int = Field(ge=0)
     limit: int = Field(ge=1, le=100)
     offset: int = Field(ge=0)
+
+
+class AnalyticsResponse(BaseModel):
+    total_evaluations: int = Field(ge=0)
+    scored_evaluations: int = Field(ge=0)
+    passed_evaluations: int = Field(ge=0)
+    failed_evaluations: int = Field(ge=0)
+    pass_rate: float = Field(ge=0, le=100)
+    average_score: float = Field(ge=0, le=100)
+    average_accuracy: float = Field(ge=0, le=100)
+    average_relevance: float = Field(ge=0, le=100)
+    average_completeness: float = Field(ge=0, le=100)
+    llm_evaluations: int = Field(ge=0)
+    average_llm_score: float = Field(ge=0, le=100)
+    average_llm_accuracy: float = Field(ge=0, le=100)
+    average_llm_relevance: float = Field(ge=0, le=100)
+    average_llm_completeness: float = Field(ge=0, le=100)
+    comparison_evaluations: int = Field(ge=0)
+    average_score_difference: float = Field(ge=0)
