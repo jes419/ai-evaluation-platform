@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -249,9 +249,9 @@ def get_evaluations(
     response_model=EvaluationResponse,
 )
 def get_evaluation_by_id(
-    evaluation_id: str,
+    evaluation_id: UUID,
 ):
-    evaluation = get_evaluation(evaluation_id)
+    evaluation = get_evaluation(str(evaluation_id))
 
     if evaluation is None:
         raise HTTPException(

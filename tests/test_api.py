@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi.testclient import TestClient
@@ -29,11 +29,22 @@ def create_evaluation(prompt: str, response: str):
     )
 
 
+def assert_validation_error(response):
+    assert response.status_code == 422
+
+    data = response.json()
+
+    assert data["error"]["code"] == "VALIDATION_ERROR"
+    assert data["error"]["message"] == "Request validation failed."
+    assert isinstance(data["error"]["details"], list)
+
+    return data["error"]["details"]
+
+
 def test_root():
     response = client.get("/")
 
     assert response.status_code == 200
-
     assert response.json() == {
         "message": "AI Evaluation Platform is running"
     }
@@ -284,40 +295,92 @@ def test_get_evaluations_respects_limit_and_offset():
     assert items[1]["evaluation_id"] == third_response.json()["evaluation_id"]
 
 
-def test_get_evaluations_rejects_zero_limit():
-    response = client.get("/evaluations?limit=0")
+def test_get_evaluations_accepts_minimum_limit():
+    response = client.get("/evaluations?limit=1")
 
-    assert response.status_code == 422
+    assert response.status_code == 200
 
     data = response.json()
 
-    assert data["error"]["code"] == "VALIDATION_ERROR"
-    assert data["error"]["message"] == "Request validation failed."
-    assert isinstance(data["error"]["details"], list)
+    assert data["limit"] == 1
+    assert data["offset"] == 0
+
+
+def test_get_evaluations_accepts_maximum_limit():
+    response = client.get("/evaluations?limit=100")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["limit"] == 100
+    assert data["offset"] == 0
+
+
+def test_get_evaluations_accepts_zero_offset():
+    response = client.get("/evaluations?offset=0")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["limit"] == 10
+    assert data["offset"] == 0
+
+
+def test_get_evaluations_rejects_zero_limit():
+    response = client.get("/evaluations?limit=0")
+
+    details = assert_validation_error(response)
+
+    assert any(
+        detail["loc"][-1] == "limit"
+        for detail in details
+    )
 
 
 def test_get_evaluations_rejects_limit_above_maximum():
     response = client.get("/evaluations?limit=101")
 
-    assert response.status_code == 422
+    details = assert_validation_error(response)
 
-    data = response.json()
-
-    assert data["error"]["code"] == "VALIDATION_ERROR"
-    assert data["error"]["message"] == "Request validation failed."
-    assert isinstance(data["error"]["details"], list)
+    assert any(
+        detail["loc"][-1] == "limit"
+        for detail in details
+    )
 
 
 def test_get_evaluations_rejects_negative_offset():
     response = client.get("/evaluations?offset=-1")
 
-    assert response.status_code == 422
+    details = assert_validation_error(response)
 
-    data = response.json()
+    assert any(
+        detail["loc"][-1] == "offset"
+        for detail in details
+    )
 
-    assert data["error"]["code"] == "VALIDATION_ERROR"
-    assert data["error"]["message"] == "Request validation failed."
-    assert isinstance(data["error"]["details"], list)
+
+def test_get_evaluations_rejects_non_integer_limit():
+    response = client.get("/evaluations?limit=abc")
+
+    details = assert_validation_error(response)
+
+    assert any(
+        detail["loc"][-1] == "limit"
+        for detail in details
+    )
+
+
+def test_get_evaluations_rejects_non_integer_offset():
+    response = client.get("/evaluations?offset=abc")
+
+    details = assert_validation_error(response)
+
+    assert any(
+        detail["loc"][-1] == "offset"
+        for detail in details
+    )
 
 
 def test_get_evaluation_by_id_returns_saved_evaluation():
@@ -352,6 +415,19 @@ def test_get_evaluation_by_id_returns_404_for_unknown_id():
     }
 
 
+def test_get_evaluation_by_id_rejects_invalid_uuid():
+    response = client.get(
+        "/evaluations/not-a-valid-uuid"
+    )
+
+    details = assert_validation_error(response)
+
+    assert any(
+        detail["loc"][-1] == "evaluation_id"
+        for detail in details
+    )
+
+
 def test_evaluate_requires_prompt():
     response = client.post(
         "/evaluate",
@@ -361,17 +437,11 @@ def test_evaluate_requires_prompt():
         },
     )
 
-    assert response.status_code == 422
-
-    data = response.json()
-
-    assert data["error"]["code"] == "VALIDATION_ERROR"
-    assert data["error"]["message"] == "Request validation failed."
-    assert isinstance(data["error"]["details"], list)
+    details = assert_validation_error(response)
 
     assert any(
         detail["loc"][-1] == "prompt"
-        for detail in data["error"]["details"]
+        for detail in details
     )
 
 
@@ -384,17 +454,11 @@ def test_evaluate_requires_response():
         },
     )
 
-    assert response.status_code == 422
-
-    data = response.json()
-
-    assert data["error"]["code"] == "VALIDATION_ERROR"
-    assert data["error"]["message"] == "Request validation failed."
-    assert isinstance(data["error"]["details"], list)
+    details = assert_validation_error(response)
 
     assert any(
         detail["loc"][-1] == "response"
-        for detail in data["error"]["details"]
+        for detail in details
     )
 
 
@@ -408,17 +472,11 @@ def test_evaluate_rejects_empty_prompt():
         },
     )
 
-    assert response.status_code == 422
-
-    data = response.json()
-
-    assert data["error"]["code"] == "VALIDATION_ERROR"
-    assert data["error"]["message"] == "Request validation failed."
-    assert isinstance(data["error"]["details"], list)
+    details = assert_validation_error(response)
 
     assert any(
         detail["loc"][-1] == "prompt"
-        for detail in data["error"]["details"]
+        for detail in details
     )
 
 
@@ -432,17 +490,11 @@ def test_evaluate_rejects_empty_response():
         },
     )
 
-    assert response.status_code == 422
-
-    data = response.json()
-
-    assert data["error"]["code"] == "VALIDATION_ERROR"
-    assert data["error"]["message"] == "Request validation failed."
-    assert isinstance(data["error"]["details"], list)
+    details = assert_validation_error(response)
 
     assert any(
         detail["loc"][-1] == "response"
-        for detail in data["error"]["details"]
+        for detail in details
     )
 
 
@@ -456,17 +508,11 @@ def test_evaluate_rejects_whitespace_prompt():
         },
     )
 
-    assert response.status_code == 422
-
-    data = response.json()
-
-    assert data["error"]["code"] == "VALIDATION_ERROR"
-    assert data["error"]["message"] == "Request validation failed."
-    assert isinstance(data["error"]["details"], list)
+    details = assert_validation_error(response)
 
     assert any(
         detail["loc"][-1] == "prompt"
-        for detail in data["error"]["details"]
+        for detail in details
     )
 
 
@@ -480,17 +526,11 @@ def test_evaluate_rejects_whitespace_response():
         },
     )
 
-    assert response.status_code == 422
-
-    data = response.json()
-
-    assert data["error"]["code"] == "VALIDATION_ERROR"
-    assert data["error"]["message"] == "Request validation failed."
-    assert isinstance(data["error"]["details"], list)
+    details = assert_validation_error(response)
 
     assert any(
         detail["loc"][-1] == "response"
-        for detail in data["error"]["details"]
+        for detail in details
     )
 
 
@@ -504,17 +544,11 @@ def test_evaluate_rejects_empty_reference_answer():
         },
     )
 
-    assert response.status_code == 422
-
-    data = response.json()
-
-    assert data["error"]["code"] == "VALIDATION_ERROR"
-    assert data["error"]["message"] == "Request validation failed."
-    assert isinstance(data["error"]["details"], list)
+    details = assert_validation_error(response)
 
     assert any(
         detail["loc"][-1] == "reference_answer"
-        for detail in data["error"]["details"]
+        for detail in details
     )
 
 
@@ -528,18 +562,122 @@ def test_evaluate_rejects_whitespace_reference_answer():
         },
     )
 
-    assert response.status_code == 422
-
-    data = response.json()
-
-    assert data["error"]["code"] == "VALIDATION_ERROR"
-    assert data["error"]["message"] == "Request validation failed."
-    assert isinstance(data["error"]["details"], list)
+    details = assert_validation_error(response)
 
     assert any(
         detail["loc"][-1] == "reference_answer"
-        for detail in data["error"]["details"]
+        for detail in details
     )
+
+
+def test_evaluate_rejects_invalid_json_shape():
+    response = client.post(
+        "/evaluate",
+        json={
+            "prompt": 123,
+            "response": "Python is a programming language.",
+            "reference_answer": "Python is a programming language.",
+        },
+    )
+
+    details = assert_validation_error(response)
+
+    assert any(
+        detail["loc"][-1] == "prompt"
+        for detail in details
+    )
+
+
+def test_evaluate_rejects_invalid_response_type():
+    response = client.post(
+        "/evaluate",
+        json={
+            "prompt": "What is Python?",
+            "response": 123,
+            "reference_answer": "Python is a programming language.",
+        },
+    )
+
+    details = assert_validation_error(response)
+
+    assert any(
+        detail["loc"][-1] == "response"
+        for detail in details
+    )
+
+
+def test_evaluate_rejects_invalid_reference_answer_type():
+    response = client.post(
+        "/evaluate",
+        json={
+            "prompt": "What is Python?",
+            "response": "Python is a programming language.",
+            "reference_answer": 123,
+        },
+    )
+
+    details = assert_validation_error(response)
+
+    assert any(
+        detail["loc"][-1] == "reference_answer"
+        for detail in details
+    )
+
+
+def test_evaluate_rejects_null_prompt():
+    response = client.post(
+        "/evaluate",
+        json={
+            "prompt": None,
+            "response": "Python is a programming language.",
+            "reference_answer": "Python is a programming language.",
+        },
+    )
+
+    details = assert_validation_error(response)
+
+    assert any(
+        detail["loc"][-1] == "prompt"
+        for detail in details
+    )
+
+
+def test_evaluate_rejects_null_response():
+    response = client.post(
+        "/evaluate",
+        json={
+            "prompt": "What is Python?",
+            "response": None,
+            "reference_answer": "Python is a programming language.",
+        },
+    )
+
+    details = assert_validation_error(response)
+
+    assert any(
+        detail["loc"][-1] == "response"
+        for detail in details
+    )
+
+
+def test_evaluate_accepts_null_reference_answer():
+    response = client.post(
+        "/evaluate",
+        json={
+            "prompt": "What is Python?",
+            "response": "Python is a programming language.",
+            "reference_answer": None,
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["reference_answer"] if "reference_answer" in data else True
+    assert data["score"] is None
+    assert data["llm_judge"] is None
+    assert data["comparison"] is None
 
 
 def test_evaluate_returns_503_when_llm_unavailable(monkeypatch):
