@@ -31,19 +31,15 @@ def create_evaluation(prompt: str, response: str):
 
 def assert_validation_error(response):
     assert response.status_code == 422
-
     data = response.json()
-
     assert data["error"]["code"] == "VALIDATION_ERROR"
     assert data["error"]["message"] == "Request validation failed."
     assert isinstance(data["error"]["details"], list)
-
     return data["error"]["details"]
 
 
 def test_root():
     response = client.get("/")
-
     assert response.status_code == 200
     assert response.json() == {
         "message": "AI Evaluation Platform is running"
@@ -75,6 +71,134 @@ def test_analytics_returns_empty_metrics_initially():
         "comparison_evaluations": 0,
         "average_score_difference": 0.0,
     }
+
+
+def test_analytics_returns_metrics_for_scored_evaluation(monkeypatch):
+    def mock_evaluate_with_llm(*args, **kwargs):
+        from judge_models import JudgeEvaluation
+
+        return JudgeEvaluation(
+            accuracy=90,
+            relevance=80,
+            completeness=70,
+            overall_score=80,
+            passed=True,
+            feedback="Strong response.",
+        )
+
+    monkeypatch.setattr(
+        "main.evaluate_with_llm",
+        mock_evaluate_with_llm,
+    )
+
+    response = client.post(
+        "/evaluate",
+        json={
+            "prompt": "What is Python?",
+            "response": "Python is a programming language.",
+            "reference_answer": "Python is a programming language.",
+        },
+    )
+
+    assert response.status_code == 200
+
+    analytics_response = client.get("/analytics")
+
+    assert analytics_response.status_code == 200
+
+    data = analytics_response.json()
+
+    assert data["total_evaluations"] == 1
+    assert data["scored_evaluations"] == 1
+    assert data["passed_evaluations"] == 1
+    assert data["failed_evaluations"] == 0
+    assert data["pass_rate"] == 100.0
+    assert data["average_score"] == 100.0
+    assert data["average_accuracy"] == 100.0
+    assert data["average_relevance"] == 100.0
+    assert data["average_completeness"] == 100.0
+    assert data["llm_evaluations"] == 1
+    assert data["average_llm_score"] == 80.0
+    assert data["average_llm_accuracy"] == 90.0
+    assert data["average_llm_relevance"] == 80.0
+    assert data["average_llm_completeness"] == 70.0
+    assert data["comparison_evaluations"] == 1
+    assert data["average_score_difference"] == 20.0
+
+
+def test_analytics_aggregates_multiple_scored_evaluations(monkeypatch):
+    from judge_models import JudgeEvaluation
+
+    evaluations = [
+        JudgeEvaluation(
+            accuracy=90,
+            relevance=80,
+            completeness=70,
+            overall_score=80,
+            passed=True,
+            feedback="Strong response.",
+        ),
+        JudgeEvaluation(
+            accuracy=30,
+            relevance=40,
+            completeness=50,
+            overall_score=40,
+            passed=False,
+            feedback="Weak response.",
+        ),
+    ]
+
+    def mock_evaluate_with_llm(*args, **kwargs):
+        return evaluations.pop(0)
+
+    monkeypatch.setattr(
+        "main.evaluate_with_llm",
+        mock_evaluate_with_llm,
+    )
+
+    first_response = client.post(
+        "/evaluate",
+        json={
+            "prompt": "What is Python?",
+            "response": "Python is a programming language.",
+            "reference_answer": "Python is a programming language.",
+        },
+    )
+
+    second_response = client.post(
+        "/evaluate",
+        json={
+            "prompt": "What is JavaScript?",
+            "response": "JavaScript is a programming language.",
+            "reference_answer": "JavaScript is a programming language.",
+        },
+    )
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+
+    response = client.get("/analytics")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["total_evaluations"] == 2
+    assert data["scored_evaluations"] == 2
+    assert data["passed_evaluations"] == 2
+    assert data["failed_evaluations"] == 0
+    assert data["pass_rate"] == 100.0
+    assert data["average_score"] == 100.0
+    assert data["average_accuracy"] == 100.0
+    assert data["average_relevance"] == 100.0
+    assert data["average_completeness"] == 100.0
+    assert data["llm_evaluations"] == 2
+    assert data["average_llm_score"] == 60.0
+    assert data["average_llm_accuracy"] == 60.0
+    assert data["average_llm_relevance"] == 60.0
+    assert data["average_llm_completeness"] == 60.0
+    assert data["comparison_evaluations"] == 2
+    assert data["average_score_difference"] == 40.0
 
 
 def test_evaluate_without_reference_answer():
