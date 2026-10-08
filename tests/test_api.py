@@ -33,6 +33,7 @@ def test_root():
     response = client.get("/")
 
     assert response.status_code == 200
+
     assert response.json() == {
         "message": "AI Evaluation Platform is running"
     }
@@ -255,14 +256,17 @@ def test_get_evaluations_respects_offset():
 
 def test_get_evaluations_respects_limit_and_offset():
     create_evaluation("Question 1", "Response 1")
+
     second_response = create_evaluation(
         "Question 2",
         "Response 2",
     )
+
     third_response = create_evaluation(
         "Question 3",
         "Response 3",
     )
+
     create_evaluation("Question 4", "Response 4")
 
     response = client.get("/evaluations?limit=2&offset=1")
@@ -285,17 +289,35 @@ def test_get_evaluations_rejects_zero_limit():
 
     assert response.status_code == 422
 
+    data = response.json()
+
+    assert data["error"]["code"] == "VALIDATION_ERROR"
+    assert data["error"]["message"] == "Request validation failed."
+    assert isinstance(data["error"]["details"], list)
+
 
 def test_get_evaluations_rejects_limit_above_maximum():
     response = client.get("/evaluations?limit=101")
 
     assert response.status_code == 422
 
+    data = response.json()
+
+    assert data["error"]["code"] == "VALIDATION_ERROR"
+    assert data["error"]["message"] == "Request validation failed."
+    assert isinstance(data["error"]["details"], list)
+
 
 def test_get_evaluations_rejects_negative_offset():
     response = client.get("/evaluations?offset=-1")
 
     assert response.status_code == 422
+
+    data = response.json()
+
+    assert data["error"]["code"] == "VALIDATION_ERROR"
+    assert data["error"]["message"] == "Request validation failed."
+    assert isinstance(data["error"]["details"], list)
 
 
 def test_get_evaluation_by_id_returns_saved_evaluation():
@@ -321,8 +343,12 @@ def test_get_evaluation_by_id_returns_404_for_unknown_id():
     )
 
     assert response.status_code == 404
+
     assert response.json() == {
-        "detail": "Evaluation not found."
+        "error": {
+            "code": "NOT_FOUND",
+            "message": "Evaluation not found.",
+        }
     }
 
 
@@ -337,6 +363,17 @@ def test_evaluate_requires_prompt():
 
     assert response.status_code == 422
 
+    data = response.json()
+
+    assert data["error"]["code"] == "VALIDATION_ERROR"
+    assert data["error"]["message"] == "Request validation failed."
+    assert isinstance(data["error"]["details"], list)
+
+    assert any(
+        detail["loc"][-1] == "prompt"
+        for detail in data["error"]["details"]
+    )
+
 
 def test_evaluate_requires_response():
     response = client.post(
@@ -348,6 +385,17 @@ def test_evaluate_requires_response():
     )
 
     assert response.status_code == 422
+
+    data = response.json()
+
+    assert data["error"]["code"] == "VALIDATION_ERROR"
+    assert data["error"]["message"] == "Request validation failed."
+    assert isinstance(data["error"]["details"], list)
+
+    assert any(
+        detail["loc"][-1] == "response"
+        for detail in data["error"]["details"]
+    )
 
 
 def test_evaluate_rejects_empty_prompt():
@@ -362,6 +410,17 @@ def test_evaluate_rejects_empty_prompt():
 
     assert response.status_code == 422
 
+    data = response.json()
+
+    assert data["error"]["code"] == "VALIDATION_ERROR"
+    assert data["error"]["message"] == "Request validation failed."
+    assert isinstance(data["error"]["details"], list)
+
+    assert any(
+        detail["loc"][-1] == "prompt"
+        for detail in data["error"]["details"]
+    )
+
 
 def test_evaluate_rejects_empty_response():
     response = client.post(
@@ -374,6 +433,17 @@ def test_evaluate_rejects_empty_response():
     )
 
     assert response.status_code == 422
+
+    data = response.json()
+
+    assert data["error"]["code"] == "VALIDATION_ERROR"
+    assert data["error"]["message"] == "Request validation failed."
+    assert isinstance(data["error"]["details"], list)
+
+    assert any(
+        detail["loc"][-1] == "response"
+        for detail in data["error"]["details"]
+    )
 
 
 def test_evaluate_rejects_whitespace_prompt():
@@ -388,6 +458,17 @@ def test_evaluate_rejects_whitespace_prompt():
 
     assert response.status_code == 422
 
+    data = response.json()
+
+    assert data["error"]["code"] == "VALIDATION_ERROR"
+    assert data["error"]["message"] == "Request validation failed."
+    assert isinstance(data["error"]["details"], list)
+
+    assert any(
+        detail["loc"][-1] == "prompt"
+        for detail in data["error"]["details"]
+    )
+
 
 def test_evaluate_rejects_whitespace_response():
     response = client.post(
@@ -400,6 +481,17 @@ def test_evaluate_rejects_whitespace_response():
     )
 
     assert response.status_code == 422
+
+    data = response.json()
+
+    assert data["error"]["code"] == "VALIDATION_ERROR"
+    assert data["error"]["message"] == "Request validation failed."
+    assert isinstance(data["error"]["details"], list)
+
+    assert any(
+        detail["loc"][-1] == "response"
+        for detail in data["error"]["details"]
+    )
 
 
 def test_evaluate_rejects_empty_reference_answer():
@@ -414,6 +506,17 @@ def test_evaluate_rejects_empty_reference_answer():
 
     assert response.status_code == 422
 
+    data = response.json()
+
+    assert data["error"]["code"] == "VALIDATION_ERROR"
+    assert data["error"]["message"] == "Request validation failed."
+    assert isinstance(data["error"]["details"], list)
+
+    assert any(
+        detail["loc"][-1] == "reference_answer"
+        for detail in data["error"]["details"]
+    )
+
 
 def test_evaluate_rejects_whitespace_reference_answer():
     response = client.post(
@@ -426,6 +529,17 @@ def test_evaluate_rejects_whitespace_reference_answer():
     )
 
     assert response.status_code == 422
+
+    data = response.json()
+
+    assert data["error"]["code"] == "VALIDATION_ERROR"
+    assert data["error"]["message"] == "Request validation failed."
+    assert isinstance(data["error"]["details"], list)
+
+    assert any(
+        detail["loc"][-1] == "reference_answer"
+        for detail in data["error"]["details"]
+    )
 
 
 def test_evaluate_returns_503_when_llm_unavailable(monkeypatch):
@@ -449,8 +563,12 @@ def test_evaluate_returns_503_when_llm_unavailable(monkeypatch):
     )
 
     assert response.status_code == 503
+
     assert response.json() == {
-        "detail": "LLM judge is unavailable."
+        "error": {
+            "code": "LLM_JUDGE_UNAVAILABLE",
+            "message": "LLM judge is unavailable.",
+        }
     }
 
 
@@ -475,6 +593,10 @@ def test_evaluate_returns_502_when_llm_response_is_invalid(monkeypatch):
     )
 
     assert response.status_code == 502
+
     assert response.json() == {
-        "detail": "LLM judge returned an invalid response."
+        "error": {
+            "code": "LLM_JUDGE_INVALID_RESPONSE",
+            "message": "LLM judge returned an invalid response.",
+        }
     }
