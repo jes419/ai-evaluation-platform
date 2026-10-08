@@ -1,0 +1,17 @@
+[project]
+name = "ai-evaluation-platform"
+version = "0.1.0"
+description = "AI Evaluation Platform with deterministic and LLM-based evaluation"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.142.4",
+    "ollama>=0.6.3",
+    "uvicorn>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx2",
+    "pytest>=9.1.1",
+]
