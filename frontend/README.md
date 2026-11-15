@@ -1,16 +1,28 @@
-# React + Vite
+# Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The frontend is a React 19 single-page dashboard built with Vite. It submits evaluations to the FastAPI backend and displays evaluation results, analytics, and paginated history.
 
-Currently, two official plugins are available:
+## Requirements
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node.js `^20.19.0` or `>=22.12.0` and npm
+- The backend running at `http://127.0.0.1:8000` (the API address is currently defined directly in `src/App.jsx`)
 
-## React Compiler
+## Install and run
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+From this directory:
 
-## Expanding the Oxlint configuration
+```bash
+npm ci
+npm run dev
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+Open the URL printed by Vite, normally `http://localhost:5173`. The app loads analytics and evaluation history on startup. Submit a prompt and response; adding a reference answer also requests deterministic and Ollama LLM judging. Use the history controls to page through saved results or open an evaluation again.
+
+## Scripts
+
+- `npm run dev` starts the Vite development server.
+- `npm run build` creates a production bundle in `dist/`.
+- `npm run preview` serves the existing production bundle locally.
+- `npm run lint` runs Oxlint.
+
+The frontend does not currently define an environment variable for the backend URL. The backend's CORS middleware permits cross-origin requests, and its API must be started separately. See the [project README](../README.md) for backend setup, API routes, and test instructions.

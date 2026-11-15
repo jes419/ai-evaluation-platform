@@ -1,72 +1,89 @@
 # AI Evaluation Platform
 
-A production-oriented platform for evaluating and benchmarking LLM applications.
+A FastAPI service and React dashboard for comparing deterministic response scores with an Ollama LLM judge. Evaluation history and analytics are stored in a local SQLite database.
 
-## Overview
+## Prerequisites
 
-The AI Evaluation Platform evaluates AI-generated responses using deterministic evaluation and an LLM-based judge.
+- Python 3.13 or newer and [uv](https://docs.astral.sh/uv/)
+- Node.js and npm
+- [Ollama](https://ollama.com/) with the `qwen3:8b` model available for evaluations that include a reference answer
 
-The platform provides:
+Pull the model before using LLM judging:
 
-- Deterministic response evaluation
-- LLM-based evaluation using Ollama
-- Evaluation comparison
-- Persistent SQLite evaluation history
-- Evaluation history pagination
-- Evaluation analytics
-- Structured API error handling
-- React evaluation dashboard
-- Automated backend test coverage
+```bash
+ollama pull qwen3:8b
+```
 
-## Technology Stack
+Keep Ollama running while making judged evaluations. Requests without a reference answer are saved without deterministic scores or an LLM judge result.
+
+## Run locally
 
 ### Backend
 
-- Python 3.13+
-- FastAPI
-- Uvicorn
-- Pydantic
-- SQLAlchemy
-- SQLite
-- Ollama
+From the repository root, install the project and development dependencies, then start the API:
+
+```bash
+uv sync --dev
+uv run uvicorn main:app --reload
+```
+
+The API listens at `http://127.0.0.1:8000`. Its interactive OpenAPI documentation is at `http://127.0.0.1:8000/docs`. SQLite data is stored in `evaluation.db` in the current working directory. The application does not define environment-variable configuration.
 
 ### Frontend
 
-- React 19
-- Vite 8
-- JavaScript
-- CSS
+In another terminal:
 
-### Testing
+```bash
+cd frontend
+npm ci
+npm run dev
+```
 
-- pytest
-- FastAPI TestClient
-- httpx
+Open the local URL printed by Vite (normally `http://localhost:5173`). The dashboard calls the API at `http://127.0.0.1:8000`; start the backend first.
 
-## Architecture
+To create a production frontend build:
 
-```text
-React Frontend
-      |
-      | HTTP
-      v
-FastAPI Backend
-      |
-      +----------------------+
-      |                      |
-      v                      v
-Deterministic Evaluator   Ollama LLM Judge
-      |                      |
-      +----------+-----------+
-                 |
-                 v
-          Comparison Layer
-                 |
-                 v
-          SQLite Persistence
-                 |
-                 v
-          Evaluation History
-                 |
-                 v
-              Analytics
+```bash
+cd frontend
+npm run build
+```
+
+Vite writes the build output to `frontend/dist`.
+
+## Use the dashboard
+
+Enter a prompt and AI response. Add a reference answer to run deterministic evaluation, LLM judging, and comparison; without it, the request is saved without scores. The dashboard displays the result, aggregate analytics, and saved history. Use **View** to reload an item, **Previous** and **Next** to page through history, and **Refresh** to reload analytics or history.
+
+## API
+
+All routes are served by the backend at `http://127.0.0.1:8000`:
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/` | Health-style message confirming the service is running. |
+| `POST` | `/evaluate` | Evaluate and save a request. JSON requires nonblank `prompt` and `response`; optional nonblank `reference_answer` enables scoring and LLM judging. |
+| `GET` | `/evaluations?limit=10&offset=0` | Return a page of saved evaluations and pagination metadata. `limit` must be 1–100; `offset` must be nonnegative. |
+| `GET` | `/evaluations/{evaluation_id}` | Retrieve one evaluation by its UUID. |
+| `GET` | `/analytics` | Return aggregate counts, pass rate, average deterministic and LLM scores, and comparison differences. |
+
+For example, submit an evaluation with `curl`:
+
+```bash
+curl -X POST http://127.0.0.1:8000/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"What is Python?","response":"Python is a programming language.","reference_answer":"Python is a programming language."}'
+```
+
+Validation errors return HTTP 422. If Ollama is unavailable, a judged evaluation returns HTTP 503; an invalid judge response returns HTTP 502. FastAPI's `/docs` page provides request and response schemas.
+
+## Tests
+
+Run the backend test suite from the repository root:
+
+```bash
+uv run pytest
+```
+
+## Frontend documentation
+
+See [`frontend/README.md`](frontend/README.md) for frontend-specific setup, scripts, and dashboard/API connection details.
